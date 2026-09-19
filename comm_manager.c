@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "comm_manager.h"
+#include "motor_manager.h"
 #include "hardware/uart.h"
 #include "pico/time.h"
 
@@ -147,6 +148,28 @@ static void process_new_messsage(void)
             memcpy(message_tx.payload.msg_string.text,
                    message_rx.payload.msg_echo.text,
                    sizeof(message_rx.payload.msg_echo.text));
+            comm_manager_prepare_tx(&message_tx, sizeof(message_tx));
+            break;
+        }
+
+        case kStartMotor: {
+            const tPcToDspMessageStartMotor *msg_start_motor =
+                (const tPcToDspMessageStartMotor *)&message_rx.payload.msg_start_motor;
+
+            start_motor((eMotorId)msg_start_motor->motor,
+                        (eMotorDirection)msg_start_motor->direction,
+                        msg_start_motor->speed);
+            message_tx.op = kAck;
+            comm_manager_prepare_tx(&message_tx, sizeof(message_tx));
+            break;
+        }
+
+        case kStopMotor: {
+            const tPcToDspMessageStopMotor *msg_stop_motor =
+                (const tPcToDspMessageStopMotor *)&message_rx.payload.msg_stop_motor;
+
+            stop_motor((eMotorId)msg_stop_motor->motor);
+            message_tx.op = kAck;
             comm_manager_prepare_tx(&message_tx, sizeof(message_tx));
             break;
         }

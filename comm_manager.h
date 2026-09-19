@@ -10,10 +10,12 @@
 
 /* Operation codes for communication from PC to DSP */
 typedef enum {
-    kGetVer  = 0,
-    kGetTime = 1,
-    kSetTime = 257,
-    kEcho    = 258,
+    kGetVer      = 0,
+    kGetTime     = 1,
+    kSetTime     = 257,
+    kEcho        = 258,
+    kStartMotor  = 259,
+    kStopMotor   = 260,
 } ePcToDspCommOpCodes;
 
 /* Message structure for messages from PC to DSP */
@@ -37,13 +39,25 @@ typedef struct {
 } tPcToDspMessageEcho;
 
 typedef struct {
+    uint8_t motor;
+    uint8_t direction;
+    uint16_t speed;
+} tPcToDspMessageStartMotor;
+
+typedef struct {
+    uint8_t motor;
+} tPcToDspMessageStopMotor;
+
+typedef struct {
     uint16_t op;
     union {
         uint8_t raw[COMM_MSG_SIZE - sizeof(uint16_t)];
-        tPcToDspMessageGetVer  msg_get_ver;
-        tPcToDspMessageGetTime msg_get_time;
-        tPcToDspMessageSetTime msg_set_time;
-        tPcToDspMessageEcho    msg_echo;
+        tPcToDspMessageGetVer      msg_get_ver;
+        tPcToDspMessageGetTime     msg_get_time;
+        tPcToDspMessageSetTime     msg_set_time;
+        tPcToDspMessageEcho        msg_echo;
+        tPcToDspMessageStartMotor  msg_start_motor;
+        tPcToDspMessageStopMotor   msg_stop_motor;
     } payload;
 } tPcToDspMessage;
 

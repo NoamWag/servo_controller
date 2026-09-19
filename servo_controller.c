@@ -3,6 +3,7 @@
 #include "hardware/uart.h"
 #include "hardware/irq.h"
 #include "comm_manager.h"
+#include "motor_manager.h"
 
 // UART defines
 #define UART_ID uart1
@@ -27,12 +28,15 @@ int main(void)
     gpio_set_function(UART_TX_PIN, GPIO_FUNC_UART);
     gpio_set_function(UART_RX_PIN, GPIO_FUNC_UART);
 
+    motor_manager_init();
+
     irq_set_exclusive_handler(UART1_IRQ, on_uart1_rx_irq);
     uart_set_irq_enables(UART_ID, true, false);
     irq_set_enabled(UART1_IRQ, true);
 
     while (true) {
         comm_manager_process();
+        motor_manager_process();
         tight_loop_contents();
     }
 }

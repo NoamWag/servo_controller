@@ -38,6 +38,7 @@ pico_sdk_init()
 add_executable(servo_controller
     servo_controller.c
     comm_manager.c
+    motor_manager.c
 )
 
 pico_set_program_name(servo_controller "servo_controller")
@@ -52,6 +53,7 @@ target_link_libraries(servo_controller
     pico_stdlib
     hardware_uart
     hardware_irq
+    hardware_pwm
 )
 
 # Add the standard include files to the build
