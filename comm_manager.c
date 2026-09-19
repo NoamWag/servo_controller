@@ -1,7 +1,15 @@
 #include <string.h>
+#include <stdio.h>
 #include "comm_manager.h"
 #include "hardware/uart.h"
-#include <string.h>
+#include "pico/time.h"
+
+static volatile uint32_t s_set_time_clock_count = 0;
+static volatile uint8_t s_set_time_hr = 0;
+static volatile uint8_t s_set_time_min = 0;
+static volatile uint8_t s_set_time_secs = 0;
+static volatile uint16_t s_set_time_msecs = 0;
+static volatile uint32_t s_rx_clock_count = 0;
 
 #define UART_ID uart1
 
@@ -29,6 +37,7 @@ void comm_manager_on_rx(uint8_t ch)
         return;
     }
 
+    s_rx_clock_count = time_us_32();
     s_rx_buffer[s_rx_index++] = ch;
 
     if (s_rx_index >= COMM_MSG_SIZE) {
@@ -51,6 +60,31 @@ static void comm_manager_prepare_tx(const void *msg, uint8_t len)
 }
 
 
+static void comm_manager_get_current_time(uint8_t *out_hr,
+                                         uint8_t *out_min,
+                                         uint8_t *out_secs,
+                                         uint16_t *out_msecs)
+{
+    uint32_t current_clock_count = time_us_32();
+    uint32_t elapsed_us = 0;
+
+    if (current_clock_count < s_set_time_clock_count) {
+        elapsed_us = (UINT32_MAX - s_set_time_clock_count) + current_clock_count + 1U;
+    } else {
+        elapsed_us = current_clock_count - s_set_time_clock_count;
+    }
+
+    uint32_t total_msecs = (uint32_t)s_set_time_msecs + (elapsed_us / 1000U);
+    uint32_t total_secs = (uint32_t)s_set_time_secs + (total_msecs / 1000U);
+    uint32_t total_mins = (uint32_t)s_set_time_min + (total_secs / 60U);
+    uint32_t total_hours = (uint32_t)s_set_time_hr + (total_mins / 60U);
+
+    *out_msecs = (uint16_t)(total_msecs % 1000U);
+    *out_secs = (uint8_t)(total_secs % 60U);
+    *out_min = (uint8_t)(total_mins % 60U);
+    *out_hr = (uint8_t)(total_hours % 24U);
+}
+
 static void process_new_messsage(void)
 {
     // first 2 bytes as little-endian uint16_t
@@ -68,16 +102,41 @@ static void process_new_messsage(void)
         }
 
         case kGetTime: {
+            uint8_t get_time_hr = 0;
+            uint8_t get_time_min = 0;
+            uint8_t get_time_secs = 0;
+            uint16_t get_time_msec = 0;
+
+            if (s_set_time_clock_count != 0U) {
+                comm_manager_get_current_time(&get_time_hr,
+                                             &get_time_min,
+                                             &get_time_secs,
+                                             &get_time_msec);
+            }
+
+            memset(&message_tx, 0, sizeof(message_tx));
             message_tx.op = kString;
-            message_tx.payload.msg_time.hr = 0;
-            message_tx.payload.msg_time.min = 0;
-            message_tx.payload.msg_time.secs = 0;
-            message_tx.payload.msg_time.msecs = 0;
+            snprintf(message_tx.payload.msg_string.text,
+                     sizeof(message_tx.payload.msg_string.text),
+                     "DSP time %02u:%02u:%02u.%03u",
+                     get_time_hr,
+                     get_time_min,
+                     get_time_secs,
+                     get_time_msec);
             comm_manager_prepare_tx(&message_tx, sizeof(message_tx));
             break;
         }
 
         case kSetTime: {
+            const tPcToDspMessageSetTime *msg_set_time =
+                (const tPcToDspMessageSetTime *)&message_rx.payload.msg_set_time;
+
+            s_set_time_clock_count = s_rx_clock_count;
+            s_set_time_hr = msg_set_time->hr;
+            s_set_time_min = msg_set_time->min;
+            s_set_time_secs = msg_set_time->secs;
+            s_set_time_msecs = msg_set_time->msecs;
+
             message_tx.op = kAck;
             comm_manager_prepare_tx(&message_tx, sizeof(message_tx));
             break;
