@@ -2,6 +2,7 @@
 #include "pico/stdlib.h"
 #include "comm_manager.h"
 #include "motor_manager.h"
+#include "motor_controller.h"
 
 int main(void)
 {
@@ -9,6 +10,7 @@ int main(void)
 
     comm_manager_init();
     motor_manager_init();
+    motor_controller_init();
 
     while (true) {
         comm_manager_process();

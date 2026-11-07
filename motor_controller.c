@@ -40,12 +40,11 @@ void motor_controller_init(void)
         s_history.edge_up[i] = 0u;
     }
 
-    // Debug-only: disable the GP22 interrupt while isolating the UART issue.
-    // gpio_set_irq_enabled_with_callback(MOTOR_CONTROLLER_PIN,
-    //                                   GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL,
-    //                                   true,
-    //                                   &motor_controller_gpio_isr);
-    // irq_set_enabled(IO_IRQ_BANK0, true);
+    gpio_set_irq_enabled_with_callback(MOTOR_CONTROLLER_PIN,
+                                      GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL,
+                                      true,
+                                      &motor_controller_gpio_isr);
+    irq_set_enabled(IO_IRQ_BANK0, true);
 }
 
 void motor_controller_reset(void)
