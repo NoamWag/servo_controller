@@ -1,9 +1,18 @@
 #include <string.h>
 #include <stdio.h>
+#include "pico/stdlib.h"
+#include "hardware/uart.h"
+#include "hardware/irq.h"
 #include "comm_manager.h"
 #include "motor_manager.h"
-#include "hardware/uart.h"
+#include "Version.h"
 #include "pico/time.h"
+
+// UART defines
+#define UART_ID uart1
+#define BAUD_RATE 115200
+#define UART_TX_PIN 4
+#define UART_RX_PIN 5
 
 static volatile uint32_t s_set_time_clock_count = 0;
 static volatile uint8_t s_set_time_hr = 0;
@@ -11,8 +20,6 @@ static volatile uint8_t s_set_time_min = 0;
 static volatile uint8_t s_set_time_secs = 0;
 static volatile uint16_t s_set_time_msecs = 0;
 static volatile uint32_t s_rx_clock_count = 0;
-
-#define UART_ID uart1
 
 typedef enum {
     kReset = 0,
@@ -31,6 +38,25 @@ static volatile bool b_is_new_message = false;
 
 static volatile uint8_t s_tx_buffer[COMM_MSG_SIZE];
 static volatile uint8_t s_tx_len = 0;
+
+void on_uart1_rx_irq(void)
+{
+    while (uart_is_readable(UART_ID)) {
+        uint8_t ch = (uint8_t)uart_getc(UART_ID);
+        comm_manager_on_rx(ch);
+    }
+}
+
+void comm_manager_init(void)
+{
+    uart_init(UART_ID, BAUD_RATE);
+    gpio_set_function(UART_TX_PIN, GPIO_FUNC_UART);
+    gpio_set_function(UART_RX_PIN, GPIO_FUNC_UART);
+
+    irq_set_exclusive_handler(UART1_IRQ, on_uart1_rx_irq);
+    uart_set_irq_enables(UART_ID, true, false);
+    irq_set_enabled(UART1_IRQ, true);
+}
 
 void comm_manager_on_rx(uint8_t ch)
 {
@@ -96,8 +122,11 @@ static void process_new_messsage(void)
     switch (op_rx) {
         case kGetVer: {
             message_tx.op = kString;
-            message_tx.payload.msg_ver.ver_major = 1;
-            message_tx.payload.msg_ver.ver_minor = 0;
+            snprintf(message_tx.payload.msg_string.text,
+                     sizeof(message_tx.payload.msg_string.text),
+                     "DSP version %u.%u",
+                     VER_MAJOR,
+                     VER_MINOR);
             comm_manager_prepare_tx(&message_tx, sizeof(message_tx));
             break;
         }

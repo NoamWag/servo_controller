@@ -39,6 +39,7 @@ add_executable(servo_controller
     servo_controller.c
     comm_manager.c
     motor_manager.c
+    motor_controller.c
 )
 
 pico_set_program_name(servo_controller "servo_controller")

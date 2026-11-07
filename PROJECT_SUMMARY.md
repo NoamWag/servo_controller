@@ -12,19 +12,34 @@ The project includes a UART command manager that decodes incoming commands from 
 
 Supported opcodes:
 
-- `0`  - `kGetVer`
-- `1`  - `kGetTime`
-- `257` - `kSetTime`
-- `258` - `kEcho`
-- `259` - `kStartMotor`
-- `260` - `kStopMotor`
+- `0`    - `kGetVer`
+- `1`    - `kGetTime`
+- `257`  - `kSetTime`
+- `258`  - `kEcho`
+- `259`  - `kStartMotor`
+- `260`  - `kStopMotor`
+- `261`  - `kGetMotorSensor` (currently supports motor `0`; reads the GP22 edge-capture history and returns a compact binary payload)
 
 The host protocol is little-endian and follows a simple structure:
 
 - `uint16_t op`
 - payload bytes immediately following
 
-The command manager processes incoming data and sends acknowledgements or text responses as needed.
+The command manager processes incoming data and sends acknowledgements, text responses, and compact binary sensor replies as needed.
+
+For `kGetMotorSensor`, the host sends:
+
+- `uint16_t op = 261`
+- `uint8_t motor`
+
+The Pico replies with:
+
+- `uint16_t op = 2` (`kMotorSensor`)
+- `uint8_t count`
+- `uint32_t times[count]` in newest-to-oldest order
+- packed direction bits for each transition (`1` = rising, `0` = falling)
+
+This response is intentionally compact so it fits the 50-byte UART frame limit.
 
 ### Time handling
 
@@ -42,12 +57,36 @@ The project now includes a motor manager state machine with the following behavi
 
 The motor manager owns the hardware state, while the communication layer triggers external commands to it.
 
+### GP22 sensor edge capture
+
+The firmware also includes a GP22 input capture module for edge timing on the sensor line. This is currently the only implemented sensor input and is associated with motor index `0`.
+
+- Sensor GPIO: GP22
+- Motor mapping for now: motor `0` -> GP22 sensor
+- Motor index `1` is not yet mapped to a sensor input
+- Motor index `2` is not defined / TBD and is intentionally not supported in the current protocol
+
+The sensor stores a 10-sample circular buffer containing:
+
+- the DSP timestamp of each rising/falling transition
+- the direction of the edge (`1` = rising, `0` = falling)
+- the current write index
+- the number of filled entries
+
+This module is implemented in `motor_controller.h` and `motor_controller.c`, and the host can query it via `kGetMotorSensor`.
+
 ## GPIO assignment
 
 UART pins remain reserved for communication:
 
 - UART TX: GP4
 - UART RX: GP5
+
+Sensor input pins:
+
+- GP22: sensor edge capture input for motor index `0` (currently implemented)
+- Motor index `1` sensor input: not yet assigned
+- Motor index `2`: TBD / not yet defined
 
 Motor pins are configured as:
 
@@ -85,5 +124,8 @@ Planned extensions for the next stage include:
 - `comm_manager.c` - UART receive/state processing logic
 - `motor_manager.h` - public motor API
 - `motor_manager.c` - state-machine-driven motor control implementation
+- `motor_controller.h` - GP22 edge-capture history API
+- `motor_controller.c` - GP22 GPIO interrupt capture and circular buffer logic
 - `CMakeLists.txt` - Pico SDK build configuration
+- `HANDOVER_MOTOR_SENSOR_PROTOCOL.md` - host-side protocol handover for the sensor query command
 - `.github/copilot-instructions.md` - host-side UART generation guidance
