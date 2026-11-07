@@ -36,10 +36,10 @@ The Pico replies with:
 
 - `uint16_t op = 2` (`kMotorSensor`)
 - `uint8_t count`
-- `uint32_t times[count]` in newest-to-oldest order
+- a packed sensor payload containing up to `MOTOR_CONTROLLER_HISTORY_SIZE` timestamps in newest-to-oldest order
 - packed direction bits for each transition (`1` = rising, `0` = falling)
 
-This response is intentionally compact so it fits the 50-byte UART frame limit.
+The response is intentionally compact and fixed-size so it fits within the 50-byte UART frame limit. The implementation stores the count first, then up to 10 `uint32_t` timestamps, followed by the packed direction bits.
 
 ### Time handling
 

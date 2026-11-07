@@ -5,6 +5,7 @@
 #include "hardware/irq.h"
 #include "comm_manager.h"
 #include "motor_manager.h"
+#include "motor_controller.h"
 #include "Version.h"
 #include "pico/time.h"
 
@@ -199,6 +200,47 @@ static void process_new_messsage(void)
 
             stop_motor((eMotorId)msg_stop_motor->motor);
             message_tx.op = kAck;
+            comm_manager_prepare_tx(&message_tx, sizeof(message_tx));
+            break;
+        }
+
+        case kGetMotorSensor: {
+            const tPcToDspMessageGetMotorSensor *msg_get_motor_sensor =
+                (const tPcToDspMessageGetMotorSensor *)&message_rx.payload.msg_get_motor_sensor;
+
+            memset(&message_tx, 0, sizeof(message_tx));
+            message_tx.op = kMotorSensor;
+
+            if (msg_get_motor_sensor->motor != 0U) {
+                message_tx.payload.msg_motor_sensor.count = 0U;
+                comm_manager_prepare_tx(&message_tx, sizeof(message_tx));
+                break;
+            }
+
+            motor_controller_history_t history = {0};
+            motor_controller_get_history(&history);
+
+            uint8_t count = (history.num_filled > MOTOR_CONTROLLER_HISTORY_SIZE)
+                ? MOTOR_CONTROLLER_HISTORY_SIZE
+                : history.num_filled;
+            message_tx.payload.msg_motor_sensor.count = count;
+
+            for (uint8_t i = 0U; i < count; ++i) {
+                uint8_t src_index = (uint8_t)((history.index + MOTOR_CONTROLLER_HISTORY_SIZE - 1U - i)
+                                            % MOTOR_CONTROLLER_HISTORY_SIZE);
+                uint32_t sample_time = history.time_us[src_index];
+                uint8_t sample_dir = history.edge_up[src_index];
+
+                message_tx.payload.msg_motor_sensor.times[i] = sample_time;
+
+                if (sample_dir != 0U) {
+                    uint8_t bit_index = i % 8U;
+                    uint8_t byte_index = i / 8U;
+                    message_tx.payload.msg_motor_sensor.direction_bits[byte_index] |=
+                        (uint8_t)(1U << bit_index);
+                }
+            }
+
             comm_manager_prepare_tx(&message_tx, sizeof(message_tx));
             break;
         }
